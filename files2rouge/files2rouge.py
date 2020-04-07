@@ -21,7 +21,22 @@ import pyrouge
 import tempfile
 import logging
 import argparse
+import re
 
+def output_to_json(output_string):
+    reg = "ROUGE-(1|2|L) Average_(R|P|F): (\d.\d+)"
+    lines = output_string.split('\n')
+    j = {}
+    for l in lines:
+        if re.search(reg, l):
+            match = re.search(reg, l)
+            r_type = f'rouge-{match.group(1)}'.lower() # {1,2,L}
+            m_type = match.group(2).lower() # {R, P, F}
+            value = eval(match.group(3))
+            if r_type not in j:
+                j[r_type] = {}
+            j[r_type][m_type] = value
+    return j
 
 def run(summ_path,
         ref_path,
@@ -30,7 +45,8 @@ def run(summ_path,
         saveto=None,
         eos=".",
         ignore_empty=False,
-        stemming=False):
+        stemming=False,
+        to_json=False):
     s = settings.Settings()
     s._load()
     stime = time()
@@ -38,7 +54,7 @@ def run(summ_path,
     sys_root, model_root = [os.path.join(dirpath, _)
                             for _ in ["system", "model"]]
 
-    print("Preparing documents...", end=" ")
+    # print("Preparing documents...", end=" ")
     utils.mkdirs([sys_root, model_root])
     ignored = utils.split_files(model_file=ref_path,
                                 system_file=summ_path,
@@ -46,8 +62,8 @@ def run(summ_path,
                                 system_dir=sys_root,
                                 eos=eos,
                                 ignore_empty=ignore_empty)
-    print("%d line(s) ignored" % len(ignored))
-    print("Running ROUGE...")
+    # print("%d line(s) ignored" % len(ignored))
+    # print("Running ROUGE...")
     log_level = logging.ERROR if not verbose else None
     r = pyrouge.Rouge155(rouge_dir=os.path.dirname(s.data['ROUGE_path']),
                          log_level=log_level)
@@ -55,6 +71,8 @@ def run(summ_path,
     r.model_dir = model_root
     r.system_filename_pattern = r's.(\d+).txt'
     r.model_filename_pattern = 'm.[A-Z].#ID#.txt'
+    # logger = logging.getLogger(r.__name__)
+    # logger.setLevel(logging.ERROR)
     data_arg = "-e %s" % s.data['ROUGE_data']
 
     if not rouge_args:
@@ -76,8 +94,10 @@ def run(summ_path,
         saveto = open(saveto, 'w')
 
     utils.tee(saveto, output)
-    print("Elapsed time: %.3f seconds" % (time() - stime))
-
+    # print("Elapsed time: %.3f seconds" % (time() - stime))
+    if to_json:
+        return output_to_json(output)
+    return output
 
 def main():
     parser = argparse.ArgumentParser(
@@ -94,17 +114,19 @@ def main():
                             Default: \".\" """)
     parser.add_argument("-m", "--stemming", action="store_true")
     parser.add_argument("-i", "--ignore_empty", action="store_true")
+    parser.add_argument("-j", "--to_json", action="store_true")
     args = parser.parse_args()
 
-    run(args.reference,
+    r = run(args.reference,
         args.summary,
         args.args,
         args.verbose,
         args.saveto,
         args.eos,
         args.ignore_empty,
-        args.stemming)
-
+        args.stemming,
+        args.to_json)
+    print(r)
 
 if __name__ == '__main__':
     main()
