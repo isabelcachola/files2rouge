@@ -35,7 +35,7 @@ pip install -U git+https://github.com/pltrdy/pyrouge
 
 **1) Clone the repo, setup the module and ROUGE**
 ```bash
-git clone https://github.com/pltrdy/files2rouge.git     
+git clone https://github.com/isabelcachola/files2rouge.git     
 cd files2rouge
 python setup_rouge.py
 python setup.py install
